@@ -1,0 +1,6 @@
+{
+  "name": "beatsaver-esa-proxy",
+  "entry": "./src/index.js",
+  "installCommand": "",
+  "buildCommand": ""
+}
