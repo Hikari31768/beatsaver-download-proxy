@@ -1,8 +1,10 @@
 const CDN_ORIGIN = "https://cdn.beatsaver.com";
 const R2_ORIGIN = "https://r2cdn.beatsaver.com";
+const API_ORIGIN = "https://api.beatsaver.com";
 
 /*
 Routes:
+  /api/<path> -> api.beatsaver.com
   /cdn/<path> -> cdn.beatsaver.com
   /r2/<path>  -> r2cdn.beatsaver.com
   /<path>     -> r2cdn first, then cdn fallback
@@ -127,12 +129,30 @@ async function handleRequest(request) {
       ok: true,
       service: "BeatSaver ESA Pages Proxy",
       routes: {
+        api: "/api/<path> -> api.beatsaver.com",
         default: "/<hash>.zip -> r2cdn first, cdn fallback",
         r2: "/r2/<hash>.zip -> r2cdn.beatsaver.com",
         cdn: "/cdn/<hash>.zip -> cdn.beatsaver.com",
       },
       range: "Range and 206 responses are passed through",
     });
+  }
+
+  // Fixed API route, including the bare /api endpoint.
+  if (url.pathname === "/api" || url.pathname.startsWith("/api/")) {
+    const pathname = url.pathname.slice(4) || "/";
+    try {
+      return await fetchUpstream(request, API_ORIGIN, pathname, "api");
+    } catch (error) {
+      return jsonResponse(
+        {
+          error: "Bad Gateway",
+          upstream: "api.beatsaver.com",
+          message: String(error?.message || error),
+        },
+        502
+      );
+    }
   }
 
   // Fixed CDN route.

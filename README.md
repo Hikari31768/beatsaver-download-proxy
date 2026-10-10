@@ -1,83 +1,118 @@
-# BeatSaver Vercel Proxy
+# BeatSaver Download & API Proxy
 
-A minimal Vercel external-rewrite proxy for:
+A fixed-origin BeatSaver proxy for Alibaba Cloud ESA Pages and Vercel:
 
+- `https://api.beatsaver.com`
 - `https://r2cdn.beatsaver.com`
 - `https://cdn.beatsaver.com`
 
-No Vercel Function is used. Requests are handled as external rewrites by Vercel's routing/CDN layer.
+ESA uses the edge function in `src/index.js`. Vercel uses external rewrites in
+`vercel.json`, with no Vercel Function required.
 
 ## Routes
 
-Assume your deployment is:
+Replace `https://your-proxy.example` with your ESA or Vercel deployment URL.
 
-    https://your-project.vercel.app
+| Proxy path | Upstream | Notes |
+| --- | --- | --- |
+| `/api/<path>` | `https://api.beatsaver.com/<path>` | Removes the `/api` prefix; preserves query parameters. |
+| `/r2/<path>` | `https://r2cdn.beatsaver.com/<path>` | Uses R2 directly. |
+| `/cdn/<path>` | `https://cdn.beatsaver.com/<path>` | Uses the regular CDN directly. |
+| `/<path>` | `https://r2cdn.beatsaver.com/<path>` | ESA falls back to the regular CDN on network errors, 404, 408, 429, or 5xx responses. Vercel uses R2 only. |
 
-### Default / R2
+### BeatSaver API
 
-These two URLs both proxy to `r2cdn.beatsaver.com`:
+Use `https://your-proxy.example/api` as the API base URL:
 
-    https://your-project.vercel.app/<path>
-    https://your-project.vercel.app/r2/<path>
+```text
+https://your-proxy.example/api/maps/id/1
+    -> https://api.beatsaver.com/maps/id/1
 
-Examples:
+https://your-proxy.example/api/search/text/0?q=example&sortOrder=Latest
+    -> https://api.beatsaver.com/search/text/0?q=example&sortOrder=Latest
+```
 
-    https://your-project.vercel.app/abcdef.zip
-    https://your-project.vercel.app/r2/abcdef.zip
+Both `/api` and `/api/` target `https://api.beatsaver.com/`. API requests go
+directly to the API upstream and do not fall back to a download CDN. Upstream
+status codes and response bodies are passed through; ESA returns 502 on an API
+network failure.
 
-Upstream:
+This proxy is intended for public API reads. ESA supports GET, HEAD, and OPTIONS
+(CORS preflight), and does not forward Cookie or Authorization headers. Vercel
+external rewrites forward requests through its routing layer; the configured CORS
+methods advertise GET, HEAD, and OPTIONS, but do not enforce a method restriction.
+API responses retain their original URLs, including map download URLs.
 
-    https://r2cdn.beatsaver.com/abcdef.zip
+See the [BeatSaver API documentation](https://api.beatsaver.com/docs).
 
-### CDN
+### Downloads
 
-    https://your-project.vercel.app/cdn/<path>
+```text
+https://your-proxy.example/abcdef.zip
+https://your-proxy.example/r2/abcdef.zip
+    -> https://r2cdn.beatsaver.com/abcdef.zip
 
-Example:
+https://your-proxy.example/cdn/abcdef.zip
+    -> https://cdn.beatsaver.com/abcdef.zip
+```
 
-    https://your-project.vercel.app/cdn/abcdef.zip
-
-Upstream:
-
-    https://cdn.beatsaver.com/abcdef.zip
+ESA preserves Range requests, conditional request headers, and upstream 206
+responses. On ESA, `/` and `/health` return service information instead of
+proxying a download.
 
 ## BetterSongSearch
 
-For `downloadUrlOverride`, use either:
+For `downloadUrlOverride`, use:
 
-    https://your-project.vercel.app
+```text
+https://your-proxy.example
+```
 
-for R2, or:
+for R2 (with CDN fallback on ESA), or:
 
-    https://your-project.vercel.app/cdn
+```text
+https://your-proxy.example/cdn
+```
 
-for the regular BeatSaver CDN.
-
-BetterSongSearch appends `/<hash>.zip` itself.
+for the regular BeatSaver CDN. BetterSongSearch appends `/<hash>.zip` itself.
+The `/api` base URL is for API clients, not `downloadUrlOverride`.
 
 ## Deploy
 
+### Alibaba Cloud ESA Pages
+
+1. Push this repository to GitHub and import it into ESA Pages.
+2. Use the repository root as the project directory.
+3. Use `esa.jsonc`, which sets the edge function entry to `./src/index.js`.
+4. Leave install and build commands empty, then deploy.
+
+No environment variables are required. After deployment, visit `/health` to
+check the service and `/api/maps/id/1` to check API forwarding.
+
 ### GitHub + Vercel
 
-1. Create a new GitHub repository.
-2. Upload `vercel.json`.
-3. Import the repository into Vercel.
-4. Framework Preset: `Other`.
-5. Deploy.
+1. Push this repository to GitHub and import it into Vercel.
+2. Use the repository root as the project directory.
+3. Set Framework Preset to `Other`.
+4. Leave the build command empty and deploy.
 
-There is no build command and no environment variable.
+Vercel reads `vercel.json`; no environment variables are required. See
+[Vercel external rewrites](https://vercel.com/docs/routing/rewrites).
 
 ### Vercel CLI
 
 From this directory:
 
-    vercel
-    vercel --prod
+```sh
+vercel
+vercel --prod
+```
 
 ## Notes
 
 - This is a fixed-origin proxy, not an arbitrary open proxy.
-- `/cdn/*` can only reach `cdn.beatsaver.com`.
-- `/r2/*` and the root fallback can only reach `r2cdn.beatsaver.com`.
-- Whether this is faster depends on the network route between the player, Vercel, and BeatSaver.
-- Large map traffic can consume significant Vercel transfer/bandwidth.
+- API query parameters are preserved, and upstream API rate limits still apply.
+- Responses allow cross-origin reads with `Access-Control-Allow-Origin: *`.
+- Whether this is faster depends on the network route between the player, your
+  deployment platform, and BeatSaver.
+- Large map traffic can consume significant platform transfer/bandwidth.
