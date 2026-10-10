@@ -6,6 +6,10 @@
       "destination": "https://api.beatsaver.com/:path*"
     },
     {
+      "source": "/cfcdn/:path*",
+      "destination": "https://cfcdn.beatsaver.com/:path*"
+    },
+    {
       "source": "/cdn/:path*",
       "destination": "https://cdn.beatsaver.com/:path*"
     },

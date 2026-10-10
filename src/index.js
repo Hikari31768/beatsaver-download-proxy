@@ -1,4 +1,5 @@
 const CDN_ORIGIN = "https://cdn.beatsaver.com";
+const CFCDN_ORIGIN = "https://cfcdn.beatsaver.com";
 const R2_ORIGIN = "https://r2cdn.beatsaver.com";
 const API_ORIGIN = "https://api.beatsaver.com";
 
@@ -6,6 +7,7 @@ const API_ORIGIN = "https://api.beatsaver.com";
 Routes:
   /api/<path> -> api.beatsaver.com
   /cdn/<path> -> cdn.beatsaver.com
+  /cfcdn/<path> -> cfcdn.beatsaver.com
   /r2/<path>  -> r2cdn.beatsaver.com
   /<path>     -> r2cdn first, then cdn fallback
 */
@@ -133,6 +135,7 @@ async function handleRequest(request) {
         default: "/<hash>.zip -> r2cdn first, cdn fallback",
         r2: "/r2/<hash>.zip -> r2cdn.beatsaver.com",
         cdn: "/cdn/<hash>.zip -> cdn.beatsaver.com",
+        cfcdn: "/cfcdn/<hash>.zip -> cfcdn.beatsaver.com",
       },
       range: "Range and 206 responses are passed through",
     });
@@ -148,6 +151,23 @@ async function handleRequest(request) {
         {
           error: "Bad Gateway",
           upstream: "api.beatsaver.com",
+          message: String(error?.message || error),
+        },
+        502
+      );
+    }
+  }
+
+  // Fixed CF CDN route, including the bare /cfcdn endpoint.
+  if (url.pathname === "/cfcdn" || url.pathname.startsWith("/cfcdn/")) {
+    const pathname = url.pathname.slice(6) || "/";
+    try {
+      return await fetchUpstream(request, CFCDN_ORIGIN, pathname, "cfcdn");
+    } catch (error) {
+      return jsonResponse(
+        {
+          error: "Bad Gateway",
+          upstream: "cfcdn.beatsaver.com",
           message: String(error?.message || error),
         },
         502

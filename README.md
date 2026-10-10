@@ -5,6 +5,7 @@ A fixed-origin BeatSaver proxy for Alibaba Cloud ESA Pages and Vercel:
 - `https://api.beatsaver.com`
 - `https://r2cdn.beatsaver.com`
 - `https://cdn.beatsaver.com`
+- `https://cfcdn.beatsaver.com`
 
 ESA uses the edge function in `src/index.js`. Vercel uses external rewrites in
 `vercel.json`, with no Vercel Function required.
@@ -18,6 +19,7 @@ Replace `https://your-proxy.example` with your ESA or Vercel deployment URL.
 | `/api/<path>` | `https://api.beatsaver.com/<path>` | Removes the `/api` prefix; preserves query parameters. |
 | `/r2/<path>` | `https://r2cdn.beatsaver.com/<path>` | Uses R2 directly. |
 | `/cdn/<path>` | `https://cdn.beatsaver.com/<path>` | Uses the regular CDN directly. |
+| `/cfcdn/<path>` | `https://cfcdn.beatsaver.com/<path>` | Uses CF CDN directly; preserves query parameters. |
 | `/<path>` | `https://r2cdn.beatsaver.com/<path>` | ESA falls back to the regular CDN on network errors, 404, 408, 429, or 5xx responses. Vercel uses R2 only. |
 
 ### BeatSaver API
@@ -54,7 +56,13 @@ https://your-proxy.example/r2/abcdef.zip
 
 https://your-proxy.example/cdn/abcdef.zip
     -> https://cdn.beatsaver.com/abcdef.zip
+
+https://your-proxy.example/cfcdn/abcdef.zip
+    -> https://cfcdn.beatsaver.com/abcdef.zip
 ```
+
+Both `/cfcdn` and `/cfcdn/` target `https://cfcdn.beatsaver.com/`. This route
+does not use the default download fallback; ESA returns 502 on a network failure.
 
 ESA preserves Range requests, conditional request headers, and upstream 206
 responses. On ESA, `/` and `/health` return service information instead of
@@ -74,7 +82,13 @@ for R2 (with CDN fallback on ESA), or:
 https://your-proxy.example/cdn
 ```
 
-for the regular BeatSaver CDN. BetterSongSearch appends `/<hash>.zip` itself.
+for the regular BeatSaver CDN, or:
+
+```text
+https://your-proxy.example/cfcdn
+```
+
+for CF CDN. BetterSongSearch appends `/<hash>.zip` itself.
 The `/api` base URL is for API clients, not `downloadUrlOverride`.
 
 ## Deploy
